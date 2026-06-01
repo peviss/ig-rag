@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
