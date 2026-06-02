@@ -1,0 +1,93 @@
+{
+  "participants": [
+    {"name": "Pedro"},
+    {"name": "Alex"}
+  ],
+  "messages": [
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717372000000,
+      "content": "dude are you free this weekend? thinking of doing a barbecue at mine"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717370800000,
+      "content": "yes definitely, what day?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717369600000,
+      "content": "Saturday afternoon, like 3pm? bring whoever you want"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717368400000,
+      "content": "sick, I'll bring some beers. should I get a dessert too?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717367200000,
+      "content": "yeah that'd be great, maybe something from that bakery on Oak Street?"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717280000000,
+      "content": "hey what movie are we watching Friday?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717278800000,
+      "content": "I was thinking Dune part 2, haven't seen it yet"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717277600000,
+      "content": "oh I've seen it but I'd watch it again, it's really good"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717276400000,
+      "content": "perfect, let's do 8pm at mine"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717193600000,
+      "content": "you know any good spots for brunch around midtown?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717192400000,
+      "content": "yeah try The Golden Egg, their eggs benedict is 10/10"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717191200000,
+      "content": "noted! looking for a place for my parents when they visit"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717190000000,
+      "content": "it's perfect for that, very chill atmosphere and good prices"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717107200000,
+      "content": "did you end up finishing that side project?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717106000000,
+      "content": "almost, just need to hook up the API and it's done"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717104800000,
+      "content": "nice, let me know when it's live I want to see it"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717103600000,
+      "content": "will do, maybe by end of next week"
+    }
+  ]
+}

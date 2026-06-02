@@ -1,0 +1,110 @@
+{
+  "participants": [
+    {"name": "Pedro"},
+    {"name": "Maria"},
+    {"name": "Alex"},
+    {"name": "Sofia"}
+  ],
+  "messages": [
+    {
+      "sender_name": "Sofia",
+      "timestamp_ms": 1717374000000,
+      "content": "ok so who's in for the trip next month?"
+    },
+    {
+      "sender_name": "Maria",
+      "timestamp_ms": 1717372800000,
+      "content": "I'm in!! where are we thinking?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717371600000,
+      "content": "I vote Barcelona, flights are cheap right now"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717370400000,
+      "content": "Barcelona sounds amazing, I've never been"
+    },
+    {
+      "sender_name": "Sofia",
+      "timestamp_ms": 1717369200000,
+      "content": "yes let's do it! I'll start looking at Airbnbs"
+    },
+    {
+      "sender_name": "Maria",
+      "timestamp_ms": 1717368000000,
+      "content": "I know a great restaurant there too, my cousin recommended it"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717281600000,
+      "content": "guys what are the plans for the weekend? should we do something?"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717280400000,
+      "content": "I'm free Saturday, maybe the rooftop bar near the park?"
+    },
+    {
+      "sender_name": "Sofia",
+      "timestamp_ms": 1717279200000,
+      "content": "ooh yes I've been wanting to go there"
+    },
+    {
+      "sender_name": "Maria",
+      "timestamp_ms": 1717278000000,
+      "content": "same, let's say 7pm Saturday?"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717276800000,
+      "content": "perfect, I'll make a reservation"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717194000000,
+      "content": "random but has anyone tried the new ramen place on 2nd?"
+    },
+    {
+      "sender_name": "Sofia",
+      "timestamp_ms": 1717192800000,
+      "content": "YES it's so good, the tonkotsu is insane"
+    },
+    {
+      "sender_name": "Maria",
+      "timestamp_ms": 1717191600000,
+      "content": "adding to the list of restaurant recommendations for sure"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717190400000,
+      "content": "ok we need a group dinner there soon"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717189200000,
+      "content": "agreed, Thursday next week?"
+    },
+    {
+      "sender_name": "Sofia",
+      "timestamp_ms": 1717108000000,
+      "content": "quick reminder the group trip deposit is due Friday"
+    },
+    {
+      "sender_name": "Pedro",
+      "timestamp_ms": 1717106800000,
+      "content": "on it, sending now"
+    },
+    {
+      "sender_name": "Maria",
+      "timestamp_ms": 1717105600000,
+      "content": "same, done!"
+    },
+    {
+      "sender_name": "Alex",
+      "timestamp_ms": 1717104400000,
+      "content": "just sent mine too, this trip is going to be so good"
+    }
+  ]
+}
