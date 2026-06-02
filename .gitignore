@@ -39,3 +39,6 @@ vectorstore/
 
 # Logs
 *.log
+
+# DB
+instagram_db/
