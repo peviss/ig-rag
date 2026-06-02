@@ -1,17 +1,9 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "langchain",
-#   "langchain-openai",
-#   "langchain-chroma",
-# ]
-# ///
-
 import json
 import os
 from pathlib import Path
 from datetime import datetime
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
@@ -108,11 +100,35 @@ def load_all_threads(inbox_path: str) -> list[Document]:
 
 # ── 4. Embed + index ──────────────────────────────────────────────────────────
 
-def build_vectorstore(docs: list[Document], persist_dir: str = "./instagram_db") -> Chroma:
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        api_key=os.environ["OPENAI_API_KEY"],
-    )
+class SentenceTransformerEmbeddings(Embeddings):
+    """Local embeddings via sentence-transformers — no API key required."""
+
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        from sentence_transformers import SentenceTransformer
+        self._model = SentenceTransformer(model_name)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._model.encode(texts, show_progress_bar=False).tolist()
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._model.encode([text], show_progress_bar=False)[0].tolist()
+
+
+def build_vectorstore(
+    docs: list[Document],
+    persist_dir: str = "./instagram_db",
+    embedding_provider: str = "openai",  # "openai" | "sentence-transformers"
+    st_model: str = "all-MiniLM-L6-v2",
+) -> Chroma:
+    if embedding_provider == "sentence-transformers":
+        embeddings: Embeddings = SentenceTransformerEmbeddings(st_model)
+        print(f"Using local sentence-transformers model: {st_model}")
+    else:
+        embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            api_key=os.environ["OPENAI_API_KEY"],
+        )
+
     vectorstore = Chroma.from_documents(
         documents=docs,
         embedding=embeddings,
@@ -145,7 +161,8 @@ if __name__ == "__main__":
     print(f"\nTotal chunks: {len(docs)}")
 
     print("\nBuilding vectorstore…")
-    vs = build_vectorstore(docs)
+    # Switch to "sentence-transformers" to run fully offline without an API key.
+    vs = build_vectorstore(docs, embedding_provider="sentence-transformers")
 
     # Example queries
     print("\n── Query: plans for the weekend ──")
@@ -154,9 +171,10 @@ if __name__ == "__main__":
     print("\n── Query: restaurant recommendations (filtered to one person) ──")
     search(vs, "restaurant recommendations", person="Maria")
 
-    # Reload later without re-embedding:
-    # vs = Chroma(
-    #     persist_directory="./instagram_db",
-    #     embedding_function=OpenAIEmbeddings(model="text-embedding-3-small"),
-    #     collection_name="instagram_chats",
-    # )
+    # Reload later without re-embedding (must use the same embedding as at index time):
+    # vs = Chroma(persist_directory="./instagram_db",
+    #             embedding_function=OpenAIEmbeddings(model="text-embedding-3-small"),
+    #             collection_name="instagram_chats")
+    # vs = Chroma(persist_directory="./instagram_db",
+    #             embedding_function=SentenceTransformerEmbeddings("all-MiniLM-L6-v2"),
+    #             collection_name="instagram_chats")
