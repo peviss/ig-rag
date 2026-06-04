@@ -6,6 +6,15 @@ from datetime import datetime, timezone
 from .models import Message
 
 
+_MAX_SHARE_CHARS = 200
+
+
+def _truncate(text: str, limit: int = _MAX_SHARE_CHARS) -> str:
+    if not text or len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
 def fix_encoding(text: str) -> str:
     """Fix Instagram's mojibake: bytes stored as Latin-1 chars re-encoded as UTF-8."""
     if not text:
@@ -51,7 +60,8 @@ def _parse_file(path: Path, thread_id: str) -> tuple[list[str], list[Message]]:
             share_link = share.get("link", "")
             share_text = fix_encoding(share.get("share_text", "") or "")
             if not content:
-                content = f"[Compartido] {share_text}" if share_text else "[Enlace compartido]"
+                snippet = _truncate(share_text)
+                content = f"[Compartido] {snippet}" if snippet else "[Enlace compartido]"
 
         reactions = [
             {
@@ -73,7 +83,7 @@ def _parse_file(path: Path, thread_id: str) -> tuple[list[str], list[Message]]:
         )
         if any(phrase in content.lower() for phrase in _attachment_phrases):
             if share_text:
-                content = f"[Compartido] {share_text}"
+                content = f"[Compartido] {_truncate(share_text)}"
             elif share_link:
                 content = f"[Enlace] {share_link}"
 
