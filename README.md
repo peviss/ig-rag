@@ -10,9 +10,25 @@ python main.py chat
 
 ## Setup
 
+**Docker (recommended):**
+
+```bash
+# 1. Add your API key to .env
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+
+# 2. Build the image (bakes in the embedding model, ~3–4 min first time)
+make build
+
+# 3. Ingest your export
+make ingest
+```
+
+**Local:**
+
 ```bash
 uv sync
-cp .env.example .env   # add ANTHROPIC_API_KEY for LLM-powered answers
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+python main.py ingest
 ```
 
 Without `ANTHROPIC_API_KEY` the system runs in retrieval-only mode (returns raw matching excerpts).
@@ -22,6 +38,8 @@ Without `ANTHROPIC_API_KEY` the system runs in retrieval-only mode (returns raw 
 Point at your Instagram export's `messages/inbox` directory:
 
 ```bash
+make ingest
+# or
 python main.py ingest --inbox ./messages/inbox
 ```
 
@@ -35,15 +53,16 @@ For better Spanish retrieval upgrade with `--model intfloat/multilingual-e5-larg
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `ingest` | Parse export, build BM25 + Chroma indexes |
-| `ask <question>` | Answer a question with LLM + citations |
-| `search <query>` | Raw hybrid retrieval, no LLM |
-| `chat` | Interactive Q&A session |
-| `stats` | Show index statistics |
+| Make target | Equivalent | Description |
+|---|---|---|
+| `make ingest` | `python main.py ingest` | Parse export, build BM25 + Chroma indexes |
+| `make ask QUERY="..."` | `python main.py ask "..."` | Answer a question with LLM + citations |
+| `make search QUERY="..."` | `python main.py search "..."` | Raw hybrid retrieval, no LLM |
+| `make chat` | `python main.py chat` | Interactive Q&A session |
+| `make stats` | `python main.py stats` | Show index statistics |
+| `make clean` | `rm -rf ig_store/` | Wipe the index |
 
-### Options
+### Options (local / `docker compose run`)
 
 ```bash
 python main.py ask "..." --sources        # show retrieved source chunks

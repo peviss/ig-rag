@@ -1,0 +1,10 @@
+.git/
+.env
+__pycache__/
+*.pyc
+*.pyo
+ig_store/
+instagram_db/
+messages/
+*.pkl
+web/

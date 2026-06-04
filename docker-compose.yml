@@ -1,0 +1,37 @@
+services:
+
+  # FastAPI RAG backend
+  api:
+    build: .
+    command: ["uv", "run", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ig_store:/app/ig_store
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  # React/nginx frontend
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # CLI — not started by `docker compose up`, used via `docker compose run`
+  ig-rag:
+    build: .
+    profiles:
+      - cli
+    volumes:
+      - ./ig_store:/app/ig_store
+      - ./messages:/app/messages:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    stdin_open: true
+    tty: true
