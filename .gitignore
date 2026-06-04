@@ -42,6 +42,7 @@ vectorstore/
 
 # DB
 instagram_db/
+ig_store/
 
 # Files
 messages/*
