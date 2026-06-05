@@ -1,4 +1,4 @@
-import type { AskResponse, MessageStats, SearchResponse, Stats } from "./types";
+import type { AskResponse, Config, IngestEvent, MessageStats, SearchResponse, Stats } from "./types";
 
 const BASE = "/api";
 
@@ -41,4 +41,42 @@ export const api = {
   },
 
   health: () => get<{ status: string; index_loaded: boolean }>("/health"),
+
+  getConfig: () => get<Config>("/config"),
+
+  setConfig: (config: Config) => post<Config>("/config", config),
+
+  ingest: async (
+    req: { inbox_path: string; model?: string; force?: boolean },
+    onProgress: (e: IngestEvent) => void,
+  ): Promise<void> => {
+    const res = await fetch(`${BASE}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail ?? res.statusText);
+    }
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            onProgress(JSON.parse(line.slice(6)));
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      }
+    }
+  },
 };
