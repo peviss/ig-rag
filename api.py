@@ -1,7 +1,10 @@
 """FastAPI backend for the Instagram RAG pipeline."""
 from __future__ import annotations
 
+import asyncio
+import json
 import os
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -17,6 +21,21 @@ STORE_DIR = Path("./ig_store")
 MSG_STORE_PATH = STORE_DIR / "messages.pkl"
 BM25_PATH = STORE_DIR / "bm25.pkl"
 CHROMA_DIR = STORE_DIR / "chroma"
+CONFIG_PATH = STORE_DIR / "config.json"
+
+DEFAULT_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+DEFAULT_INBOX = "./messages/inbox"
+
+
+def _load_config() -> dict:
+    if CONFIG_PATH.exists():
+        return json.loads(CONFIG_PATH.read_text())
+    return {"inbox_path": DEFAULT_INBOX, "model": DEFAULT_MODEL}
+
+
+def _save_config(config: dict) -> None:
+    STORE_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, indent=2))
 
 _engine = None
 _msg_store = None
@@ -79,6 +98,18 @@ class AskRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     k: int = 10
+
+
+class ConfigRequest(BaseModel):
+    inbox_path: str
+    model: str = DEFAULT_MODEL
+
+
+class IngestRequest(BaseModel):
+    inbox_path: str = DEFAULT_INBOX
+    model: str = DEFAULT_MODEL
+    batch_size: int = 64
+    force: bool = False
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -318,6 +349,104 @@ async def stats_messages(
         "top_days": top_days,
         "summary": summary,
     }
+
+
+@app.get("/api/config")
+async def get_config():
+    return _load_config()
+
+
+@app.post("/api/config")
+async def set_config(req: ConfigRequest):
+    config = {"inbox_path": req.inbox_path, "model": req.model}
+    _save_config(config)
+    return config
+
+
+def _run_ingest_sync(inbox_path: str, model: str, batch_size: int, force: bool, on_progress) -> None:
+    from src.bm25_index import BM25Index
+    from src.chunker import chunk_all
+    from src.chroma_store import ChromaStore
+    from src.embeddings import MultilingualEmbeddings
+    from src.message_store import MessageStore
+    from src.parser import load_all_threads
+
+    inbox = Path(inbox_path)
+    if not inbox.exists():
+        raise ValueError(f"Inbox not found: {inbox}")
+
+    STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+    on_progress({"step": 1, "total": 4, "message": "Parsing Instagram export…"})
+    threads = load_all_threads(inbox)
+    all_messages: list = []
+    all_l2: list = []
+    all_l3: list = []
+    for thread_id, (participants, messages) in threads.items():
+        all_messages.extend(messages)
+        l2, l3 = chunk_all(messages, thread_id, participants)
+        all_l2.extend(l2)
+        all_l3.extend(l3)
+    on_progress({
+        "step": 1, "total": 4,
+        "message": f"Parsed {len(all_messages):,} messages · {len(all_l2):,} L2 chunks · {len(all_l3):,} L3 segments",
+    })
+
+    on_progress({"step": 2, "total": 4, "message": "Saving message store…"})
+    msg_store = MessageStore()
+    msg_store.load(all_messages)
+    msg_store.save(MSG_STORE_PATH)
+
+    on_progress({"step": 3, "total": 4, "message": "Building BM25 index…"})
+    bm25 = BM25Index()
+    bm25.build([(m.id, m.text) for m in all_messages])
+    bm25.save(BM25_PATH)
+
+    on_progress({"step": 4, "total": 4, "message": f"Embedding {len(all_l2):,} L2 + {len(all_l3):,} L3 chunks… (may take a while)"})
+    embeddings = MultilingualEmbeddings(model_name=model, batch_size=batch_size)
+    chroma = ChromaStore(CHROMA_DIR, embeddings)
+    if chroma.is_populated() and not force:
+        on_progress({"step": 4, "total": 4, "message": "Chroma already populated — skipping embedding. Use force=true to re-embed."})
+    else:
+        chroma.add_chunks(all_l2)
+        on_progress({"step": 4, "total": 4, "message": f"L2 done · embedding {len(all_l3):,} L3 segments…"})
+        chroma.add_chunks(all_l3)
+
+    on_progress({
+        "step": 4, "total": 4,
+        "message": f"Done! {chroma.count(2):,} L2 chunks · {chroma.count(3):,} L3 segments stored.",
+        "done": True,
+        "l2": chroma.count(2),
+        "l3": chroma.count(3),
+        "message_count": len(all_messages),
+    })
+
+
+@app.post("/api/ingest")
+async def ingest(req: IngestRequest):
+    loop = asyncio.get_event_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def run():
+        try:
+            def on_progress(event: dict):
+                loop.call_soon_threadsafe(queue.put_nowait, event)
+            _run_ingest_sync(req.inbox_path, req.model, req.batch_size, req.force, on_progress)
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"error": True, "message": str(exc)})
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    threading.Thread(target=run, daemon=True).start()
+
+    async def event_stream():
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.get("/api/health")
