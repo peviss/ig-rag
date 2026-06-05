@@ -89,6 +89,22 @@ export interface MessageStats {
   summary: StatSummary;
 }
 
+export interface Config {
+  inbox_path: string;
+  model: string;
+}
+
+export interface IngestEvent {
+  step?: number;
+  total?: number;
+  message: string;
+  done?: boolean;
+  error?: boolean;
+  l2?: number;
+  l3?: number;
+  message_count?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
