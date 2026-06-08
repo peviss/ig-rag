@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -349,6 +349,111 @@ async def stats_messages(
         "top_days": top_days,
         "summary": summary,
     }
+
+
+def _find_inbox_prefix(names: list[str]) -> str:
+    """Return the zip path prefix one level above the conversation folders."""
+    import re
+    for name in sorted(names):
+        if re.search(r"/message_\d+\.json$", name):
+            parts = name.split("/")
+            prefix_parts = parts[:-2]  # strip conv_folder/message_N.json
+            return "/".join(prefix_parts) + "/" if prefix_parts else ""
+    return ""
+
+
+@app.post("/api/upload-inbox")
+async def upload_inbox(file: UploadFile = File(...)):
+    import re
+    import shutil
+    import tempfile
+    import zipfile
+
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(400, "Only .zip files are supported")
+
+    STORE_DIR.mkdir(parents=True, exist_ok=True)
+    inbox_dest = STORE_DIR / "inbox"
+
+    # Stream upload to a temp file so we don't load the whole ZIP into RAM
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False, dir=STORE_DIR) as tmp:
+        tmp_path = Path(tmp.name)
+        while chunk := await file.read(1024 * 1024):
+            tmp.write(chunk)
+
+    s3_key: str | None = None
+    try:
+        # ── Optional S3 upload ─────────────────────────────────────────────────
+        bucket = os.getenv("S3_BUCKET")
+        if bucket:
+            import boto3
+            s3 = boto3.client(
+                "s3",
+                region_name=os.getenv("AWS_REGION", "us-east-1"),
+            )
+            s3_key = f"inbox-uploads/{file.filename}"
+            with open(tmp_path, "rb") as fh:
+                s3.upload_fileobj(fh, bucket, s3_key)
+
+        # ── Extract JSON files to local inbox_dest ─────────────────────────────
+        with zipfile.ZipFile(tmp_path) as zf:
+            names = zf.namelist()
+            prefix = _find_inbox_prefix(names)
+
+            if inbox_dest.exists():
+                shutil.rmtree(inbox_dest)
+            inbox_dest.mkdir(parents=True)
+
+            for name in names:
+                if not name.startswith(prefix):
+                    continue
+                if not re.search(r"message_\d+\.json$", name):
+                    continue  # skip photos/videos/audio
+                rel = name[len(prefix):]
+                if not rel:
+                    continue
+                dest = inbox_dest / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(zf.read(name))
+
+        thread_count = sum(1 for p in inbox_dest.iterdir() if p.is_dir())
+
+        cfg = _load_config()
+        cfg["inbox_path"] = str(inbox_dest.resolve())
+        _save_config(cfg)
+
+        return {
+            "inbox_path": str(inbox_dest.resolve()),
+            "threads": thread_count,
+            "s3_key": s3_key,
+        }
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Invalid or corrupt ZIP file")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@app.get("/api/pick-folder")
+async def pick_folder():
+    import subprocess
+
+    script = 'POSIX path of (choose folder with prompt "Select the messages/inbox folder from your Instagram export")'
+
+    def _run():
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                return {"path": None, "cancelled": True}
+            return {"path": result.stdout.strip(), "cancelled": False}
+        except Exception:
+            return {"path": None, "cancelled": True}
+
+    return await asyncio.to_thread(_run)
 
 
 @app.get("/api/config")

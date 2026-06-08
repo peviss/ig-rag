@@ -792,6 +792,80 @@ html, body, #root { height: 100%; overflow: hidden; }
 .config-input::placeholder { color: #44445a; }
 .config-input:disabled { opacity: 0.5; }
 
+.folder-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-picker-display {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.folder-path {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.folder-path-empty {
+  font-size: 0.82rem;
+  color: #44445a;
+  font-style: italic;
+}
+
+.folder-btn { flex-shrink: 0; white-space: nowrap; }
+
+.btn-spinner.dark {
+  border-color: rgba(100,100,130,0.3);
+  border-top-color: #888899;
+}
+
+.upload-progress-wrap {
+  position: relative;
+  height: 6px;
+  background: var(--card);
+  border-radius: 3px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+.upload-progress-label {
+  position: absolute;
+  right: 0;
+  top: 8px;
+  font-size: 0.68rem;
+  color: #55556a;
+}
+
+.upload-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--green);
+}
+.upload-s3-note { color: #818cf8; }
+
 .config-error {
   font-size: 0.8rem;
   color: var(--danger);

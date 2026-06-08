@@ -42,6 +42,32 @@ export const api = {
 
   health: () => get<{ status: string; index_loaded: boolean }>("/health"),
 
+  uploadInbox: (
+    file: File,
+    onProgress: (pct: number) => void,
+  ): Promise<{ inbox_path: string; threads: number; s3_key: string | null }> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const form = new FormData();
+      form.append("file", file);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).detail ?? xhr.statusText)); }
+          catch { reject(new Error(xhr.statusText)); }
+        }
+      };
+      xhr.onerror = () => reject(new Error("Upload failed"));
+      xhr.open("POST", `${BASE}/upload-inbox`);
+      xhr.send(form);
+    }),
+
+  pickFolder: () => get<{ path: string | null; cancelled: boolean }>("/pick-folder"),
+
   getConfig: () => get<Config>("/config"),
 
   setConfig: (config: Config) => post<Config>("/config", config),

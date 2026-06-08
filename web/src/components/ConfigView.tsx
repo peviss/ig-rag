@@ -3,12 +3,17 @@ import { api } from "../api";
 import type { Config, IngestEvent } from "../types";
 
 export function ConfigView() {
-  const [config, setConfig] = useState<Config>({ inbox_path: "./messages/inbox", model: "paraphrase-multilingual-MiniLM-L12-v2" });
+  const [config, setConfig] = useState<Config>({ inbox_path: "", model: "paraphrase-multilingual-MiniLM-L12-v2" });
   const [saved, setSaved] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [uploadResult, setUploadResult] = useState<{ threads: number; s3_key: string | null } | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<IngestEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.getConfig().then(setConfig).catch(() => {});
@@ -17,6 +22,40 @@ export function ConfigView() {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploadResult(null);
+    setUploading(true);
+    setUploadPct(0);
+    try {
+      const result = await api.uploadInbox(file, setUploadPct);
+      setConfig((prev) => ({ ...prev, inbox_path: result.inbox_path }));
+      setUploadResult({ threads: result.threads, s3_key: result.s3_key });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handlePickFolder() {
+    setPicking(true);
+    setError(null);
+    try {
+      const result = await api.pickFolder();
+      if (!result.cancelled && result.path) {
+        setConfig((prev) => ({ ...prev, inbox_path: result.path! }));
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPicking(false);
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -57,18 +96,75 @@ export function ConfigView() {
           <h2 className="config-section-title">Data Source</h2>
           <form className="config-form" onSubmit={handleSave}>
             <div className="config-field">
-              <label className="config-label">Instagram inbox path</label>
+              <label className="config-label">Instagram inbox</label>
               <p className="config-hint">
-                Absolute or relative path to the <code>messages/inbox</code> directory from your Instagram export.
+                Upload your Instagram export <code>.zip</code>, or browse to the extracted <code>messages/inbox</code> folder.
               </p>
+
               <input
-                className="config-input"
-                type="text"
-                value={config.inbox_path}
-                onChange={(e) => setConfig({ ...config, inbox_path: e.target.value })}
-                placeholder="./messages/inbox"
-                disabled={running}
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                style={{ display: "none" }}
+                onChange={handleFileChange}
               />
+
+              <div className="folder-picker-row">
+                <div className="folder-picker-display">
+                  {config.inbox_path ? (
+                    <span className="folder-path">{config.inbox_path}</span>
+                  ) : (
+                    <span className="folder-path-empty">No folder selected</span>
+                  )}
+                </div>
+                <button
+                  className="config-btn secondary folder-btn"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={running || picking || uploading}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="16 16 12 12 8 16" />
+                    <line x1="12" y1="12" x2="12" y2="21" />
+                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                  </svg>
+                  Upload ZIP
+                </button>
+                <button
+                  className="config-btn secondary folder-btn"
+                  type="button"
+                  onClick={handlePickFolder}
+                  disabled={running || picking || uploading}
+                >
+                  {picking ? (
+                    <><span className="btn-spinner dark" />Waiting…</>
+                  ) : (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      Browse…
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {uploading && (
+                <div className="upload-progress-wrap">
+                  <div className="upload-progress-bar" style={{ width: `${uploadPct}%` }} />
+                  <span className="upload-progress-label">{uploadPct}%</span>
+                </div>
+              )}
+
+              {uploadResult && !uploading && (
+                <div className="upload-success">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Extracted {uploadResult.threads} conversation{uploadResult.threads !== 1 ? "s" : ""}
+                  {uploadResult.s3_key && <span className="upload-s3-note"> · saved to S3</span>}
+                </div>
+              )}
             </div>
 
             <div className="config-field">
