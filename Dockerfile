@@ -13,7 +13,8 @@ RUN uv run python -c \
     "from sentence_transformers import SentenceTransformer; \
      SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 
-COPY main.py api.py ./
+COPY main.py ./
+COPY api/ ./api/
 COPY src/ ./src/
 
 # Default: CLI. The api service overrides this with uvicorn.

@@ -43,7 +43,7 @@ install:
 	uv sync
 
 dev-api:
-	uv run uvicorn api:app --reload --port 8000
+	uv run uvicorn api.main:app --reload --port 8000
 
 dev-web:
 	cd web && npm run dev
