@@ -4,11 +4,21 @@ from .models import Message, Chunk
 
 
 def _chunk_id(level: int, thread_id: str, key: int) -> str:
+    """Generate a stable 16-char hex ID for a chunk.
+
+    The key is typically a timestamp-derived integer that, combined with the
+    level and thread, makes the ID unique within the store.
+    """
     raw = f"L{level}:{thread_id}:{key}"
     return hashlib.md5(raw.encode()).hexdigest()[:16]
 
 
 def _fmt(messages: list[Message]) -> str:
+    """Render a list of messages as a human-readable, LLM-friendly string.
+
+    Each line is "[YYYY-MM-DD HH:MM] sender: text", matching the format
+    cited in LLM answer prompts so the model can reference timestamps directly.
+    """
     lines = [
         f"[{m.dt.strftime('%Y-%m-%d %H:%M')}] {m.sender}: {m.text}"
         for m in messages
@@ -23,9 +33,25 @@ def chunk_level2(
     window: int = 20,
     overlap: int = 5,
 ) -> list[Chunk]:
-    """Sliding-window conversation chunks (primary retrieval granularity)."""
+    """Produce sliding-window conversation chunks (primary retrieval granularity).
+
+    Consecutive messages are grouped into windows of *window* messages with
+    *overlap* messages shared between adjacent windows. The overlap prevents
+    a relevant exchange from being split across two non-overlapping chunks and
+    never retrieved by either.
+
+    Args:
+        messages: Time-sorted list of messages for a single thread.
+        thread_id: Conversation identifier used in chunk IDs and metadata.
+        participants: All participants in the thread.
+        window: Number of messages per chunk.
+        overlap: Number of messages re-used at the start of each new chunk.
+
+    Returns:
+        List of L2 Chunk objects in chronological order.
+    """
     chunks: list[Chunk] = []
-    step = window - overlap
+    step = window - overlap  # how far to advance the window each iteration
 
     for i in range(0, len(messages), step):
         batch = messages[i : i + window]
@@ -35,6 +61,8 @@ def chunk_level2(
         start, end = batch[0], batch[-1]
         chunks.append(
             Chunk(
+                # Incorporate the loop index in the key to disambiguate two batches
+                # that happen to start at the same millisecond (rare but possible).
                 chunk_id=_chunk_id(2, thread_id, start.timestamp * 1000 + i),
                 level=2,
                 thread_id=thread_id,
@@ -61,7 +89,24 @@ def chunk_level3(
     min_size: int = 5,
     max_size: int = 200,
 ) -> list[Chunk]:
-    """Topic segments inferred from temporal gaps (conversation sessions)."""
+    """Produce topic segments inferred from temporal gaps (conversation sessions).
+
+    A new segment begins whenever consecutive messages are separated by more
+    than *gap_hours* hours, or when the current segment reaches *max_size*.
+    Segments shorter than *min_size* messages are discarded — they are usually
+    isolated reactions or single stray messages with little retrieval value.
+
+    Args:
+        messages: Time-sorted list of messages for a single thread.
+        thread_id: Conversation identifier.
+        participants: All participants in the thread.
+        gap_hours: Silence duration (hours) that signals a new conversation session.
+        min_size: Minimum messages required to keep a segment.
+        max_size: Hard cap on segment length to prevent very long LLM contexts.
+
+    Returns:
+        List of L3 Chunk objects, one per inferred session.
+    """
     if not messages:
         return []
 
@@ -69,7 +114,7 @@ def chunk_level3(
     current: list[Message] = [messages[0]]
 
     for prev, curr in zip(messages, messages[1:]):
-        gap = (curr.timestamp - prev.timestamp) / 3600
+        gap = (curr.timestamp - prev.timestamp) / 3600  # seconds → hours
         if gap >= gap_hours or len(current) >= max_size:
             if len(current) >= min_size:
                 segments.append(current)
@@ -77,6 +122,7 @@ def chunk_level3(
         else:
             current.append(curr)
 
+    # Flush the final segment
     if len(current) >= min_size:
         segments.append(current)
 
@@ -108,7 +154,14 @@ def chunk_all(
     thread_id: str,
     participants: list[str],
 ) -> tuple[list[Chunk], list[Chunk]]:
-    """Return (l2_chunks, l3_chunks). L1 is handled by MessageStore directly."""
+    """Produce all L2 and L3 chunks for a thread in a single call.
+
+    L1 (individual messages) is handled directly by MessageStore and is not
+    returned here — it is never embedded into Chroma, only indexed by BM25.
+
+    Returns:
+        (l2_chunks, l3_chunks)
+    """
     l2 = chunk_level2(messages, thread_id, participants)
     l3 = chunk_level3(messages, thread_id, participants)
     return l2, l3
