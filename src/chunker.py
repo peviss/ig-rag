@@ -13,6 +13,28 @@ def _chunk_id(level: int, thread_id: str, key: int) -> str:
     return hashlib.md5(raw.encode()).hexdigest()[:16]
 
 
+def _split_by_gap(messages: list[Message], gap_minutes: float) -> list[list[Message]]:
+    """Partition messages into groups separated by silences ≥ gap_minutes.
+
+    Each returned group is a contiguous burst of conversation activity with no
+    internal pause longer than the threshold. The sliding window in chunk_level2
+    operates within each group independently so chunks never straddle a silence.
+    """
+    if not messages:
+        return []
+    groups: list[list[Message]] = []
+    current: list[Message] = [messages[0]]
+    gap_seconds = gap_minutes * 60
+    for prev, curr in zip(messages, messages[1:]):
+        if (curr.timestamp - prev.timestamp) >= gap_seconds:
+            groups.append(current)
+            current = [curr]
+        else:
+            current.append(curr)
+    groups.append(current)
+    return groups
+
+
 def _fmt(messages: list[Message]) -> str:
     """Render a list of messages as a human-readable, LLM-friendly string.
 
@@ -32,13 +54,16 @@ def chunk_level2(
     participants: list[str],
     window: int = 20,
     overlap: int = 5,
+    gap_minutes: float = 60.0,
 ) -> list[Chunk]:
     """Produce sliding-window conversation chunks (primary retrieval granularity).
 
-    Consecutive messages are grouped into windows of *window* messages with
-    *overlap* messages shared between adjacent windows. The overlap prevents
-    a relevant exchange from being split across two non-overlapping chunks and
-    never retrieved by either.
+    Messages are first partitioned into conversation groups separated by silences
+    of at least *gap_minutes*. The sliding window then operates independently
+    within each group, so no chunk ever spans an hourly gap between bursts.
+
+    Within each group, consecutive windows share *overlap* messages to prevent a
+    relevant exchange from being split across two non-overlapping chunks.
 
     Args:
         messages: Time-sorted list of messages for a single thread.
@@ -46,38 +71,39 @@ def chunk_level2(
         participants: All participants in the thread.
         window: Number of messages per chunk.
         overlap: Number of messages re-used at the start of each new chunk.
+        gap_minutes: Silence threshold (minutes) that starts a new group.
 
     Returns:
         List of L2 Chunk objects in chronological order.
     """
     chunks: list[Chunk] = []
-    step = window - overlap  # how far to advance the window each iteration
+    step = window - overlap
+    groups = _split_by_gap(messages, gap_minutes)
 
-    for i in range(0, len(messages), step):
-        batch = messages[i : i + window]
-        if not batch:
-            break
+    for group in groups:
+        for i in range(0, len(group), step):
+            batch = group[i : i + window]
+            if not batch:
+                break
 
-        start, end = batch[0], batch[-1]
-        chunks.append(
-            Chunk(
-                # Incorporate the loop index in the key to disambiguate two batches
-                # that happen to start at the same millisecond (rare but possible).
-                chunk_id=_chunk_id(2, thread_id, start.timestamp * 1000 + i),
-                level=2,
-                thread_id=thread_id,
-                participants=participants,
-                text=_fmt(batch),
-                message_ids=[m.id for m in batch],
-                start_timestamp=start.timestamp,
-                end_timestamp=end.timestamp,
-                start_date=start.dt.strftime("%Y-%m-%d"),
-                end_date=end.dt.strftime("%Y-%m-%d"),
-                year=start.dt.year,
-                month=start.dt.month,
-                message_count=len(batch),
+            start, end = batch[0], batch[-1]
+            chunks.append(
+                Chunk(
+                    chunk_id=_chunk_id(2, thread_id, start.timestamp * 1000 + i),
+                    level=2,
+                    thread_id=thread_id,
+                    participants=participants,
+                    text=_fmt(batch),
+                    message_ids=[m.id for m in batch],
+                    start_timestamp=start.timestamp,
+                    end_timestamp=end.timestamp,
+                    start_date=start.dt.strftime("%Y-%m-%d"),
+                    end_date=end.dt.strftime("%Y-%m-%d"),
+                    year=start.dt.year,
+                    month=start.dt.month,
+                    message_count=len(batch),
+                )
             )
-        )
     return chunks
 
 
