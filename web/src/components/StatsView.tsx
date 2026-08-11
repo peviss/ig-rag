@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -75,6 +75,8 @@ export function StatsView() {
   const [end, setEnd] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [yearFrom, setYearFrom] = useState<number | null>(null);
+  const [yearTo, setYearTo] = useState<number | null>(null);
 
   useEffect(() => {
     load(start, end);
@@ -108,6 +110,39 @@ export function StatsView() {
   }
 
   const senders = data?.senders ?? [];
+
+  // Total (all senders combined) messages per month, independent of the per-sender trend chart above
+  const monthTotals = useMemo(() => {
+    return (data?.by_month ?? []).map((row) => ({
+      month: String(row.month),
+      total: senders.reduce((sum, s) => sum + (Number(row[s]) || 0), 0),
+    }));
+  }, [data, senders]);
+
+  const years = useMemo(() => {
+    const ys = new Set(monthTotals.map((m) => Number(m.month.slice(0, 4))));
+    return Array.from(ys).sort((a, b) => a - b);
+  }, [monthTotals]);
+
+  // Reset the year-range pickers to the full available range whenever the underlying data changes
+  useEffect(() => {
+    if (years.length) {
+      setYearFrom(years[0]);
+      setYearTo(years[years.length - 1]);
+    }
+  }, [years.join(",")]);
+
+  const effectiveFrom = yearFrom ?? years[0] ?? 0;
+  const effectiveTo = yearTo ?? years[years.length - 1] ?? 0;
+
+  const filteredMonthTotals = useMemo(
+    () =>
+      monthTotals.filter((m) => {
+        const y = Number(m.month.slice(0, 4));
+        return y >= effectiveFrom && y <= effectiveTo;
+      }),
+    [monthTotals, effectiveFrom, effectiveTo]
+  );
 
   return (
     <div className="stats-view">
@@ -252,6 +287,50 @@ export function StatsView() {
                 ))}
               </LineChart>
             </ResponsiveContainer>
+          </section>
+
+          {/* ── Total messages per month (year range) ───────────────────────────── */}
+          <section className="stats-section">
+            <div className="chart-section-header">
+              <h2 className="stats-section-title">Total messages by month</h2>
+              {years.length > 1 && (
+                <div className="year-range-controls">
+                  <label className="filter-label">From</label>
+                  <select
+                    className="year-select"
+                    value={effectiveFrom}
+                    onChange={(e) => setYearFrom(Number(e.target.value))}
+                  >
+                    {years.filter((y) => y <= effectiveTo).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  <label className="filter-label">To</label>
+                  <select
+                    className="year-select"
+                    value={effectiveTo}
+                    onChange={(e) => setYearTo(Number(e.target.value))}
+                  >
+                    {years.filter((y) => y >= effectiveFrom).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            {filteredMonthTotals.length === 0 ? (
+              <p className="chart-empty-note">No messages in this range.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={filteredMonthTotals} margin={{ top: 4, right: 16, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: "#55556a", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#55556a", fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="total" name="Messages" fill="#818cf8" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </section>
 
           {/* ── Top days ──────────────────────────────────────────────────────── */}
