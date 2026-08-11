@@ -666,6 +666,43 @@ html, body, #root { height: 100%; overflow: hidden; }
 
 .chart-section { min-width: 0; }
 
+.chart-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.chart-section-header .stats-section-title { margin-bottom: 0; }
+
+.year-range-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.year-select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  color-scheme: dark;
+}
+.year-select:focus { border-color: var(--accent); }
+
+.chart-empty-note {
+  font-size: 0.82rem;
+  color: var(--muted2);
+  padding: 24px 0;
+  text-align: center;
+}
+
 /* Top days */
 .top-days-list { display: flex; flex-direction: column; gap: 6px; }
 
