@@ -3,8 +3,8 @@
 RAG pipeline for Instagram DM exports. Ask natural language questions about your conversation history and get answers grounded strictly in the exported messages.
 
 ```
-python main.py ask "¿Cuándo hablamos por primera vez de mudarnos?"
-python main.py ask "¿Qué restaurantes recomendó ella?" --sources
+python main.py ask "When did we talk about moving?"
+python main.py ask "Conversations about restaurant recomendations" --sources
 python main.py chat
 ```
 
